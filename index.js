@@ -32,73 +32,61 @@
 // Help teachers retrieve and analyze student performance efficiently.
 
 
-
-
-
 const express = require('express');
-const mongoose = require('mongoose');
-const cors = require('cors');
-const MenuItem = require('schema.js');
+const { resolve } = require('path');
 
 const app = express();
+const port = 3010;
 
+// Middleware to parse JSON requests
 app.use(express.json());
-app.use(cors());
 
-mongoose
-  .connect("atlas url", {
-    useNewUrlParser: true,
-    useUnifiedTopology: true
-  })
-  .then(() => console.log('Connected to MongoDB Atlas'))
-  .catch((err) => console.error('MongoDB connection error:', err));
+// Static file serving for frontend (if needed)
+app.use(express.static('static'));
 
-app.post('/menu', async (req, res) => {
-  try {
-    const { name, description, price } = req.body;
-    if (!name || !price) {
-      return res.status(400).json({
-        success: false,
-        message: 'Name and Price are required',
-      });
+// Mock data: 100 students with random marks
+const students = Array.from({ length: 100 }, (_, i) => ({
+    student_id: `${i + 1}`,
+    name: `Student ${i + 1}`,
+    marks: {
+        math: Math.floor(Math.random() * 100),
+        science: Math.floor(Math.random() * 100),
+        english: Math.floor(Math.random() * 100),
+        history: Math.floor(Math.random() * 100),
+        geography: Math.floor(Math.random() * 100),
+    },
+    get total() {
+        return Object.values(this.marks).reduce((sum, mark) => sum + mark, 0);
+    }
+}));
+
+// API Endpoint: Retrieve Students Above Threshold
+app.post('/students/above-threshold', (req, res) => {
+    const { threshold } = req.body;
+
+    // Validate threshold input
+    if (typeof threshold !== 'number' || isNaN(threshold)) {
+        return res.status(400).json({ error: 'Invalid threshold value. Please provide a valid number.' });
     }
 
-    const newMenuItem = await MenuItem.create({
-      name,
-      description,
-      price,
+    // Filter students whose total marks exceed the threshold
+    const filteredStudents = students
+        .filter(student => student.total > threshold)
+        .map(({ name, total }) => ({ name, total }));
+
+    // Respond with the filtered list and count
+    res.json({
+        count: filteredStudents.length,
+        students: filteredStudents
     });
-    res.status(201).json({
-      success: true,
-      message: 'New menu item created successfully',
-      data: newMenuItem,
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error creating menu item',
-      error: error.message,
-    });
-  }
 });
 
-app.get('/menu', async (req, res) => {
-  try {
-    const menuItems = await MenuItem.find();
-    res.status(200).json({
-      success: true,
-      data: menuItems,
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching menu items',
-      error: error.message,
-    });
-  }
+// Root Route: Serve a sample HTML page (optional)
+app.get('/', (req, res) => {
+    res.sendFile(resolve(__dirname, 'pages/index.html'));
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+// Start the server
+app.listen(port, () => {
+    console.log(`Server running at http://localhost:${port}`);
 });
